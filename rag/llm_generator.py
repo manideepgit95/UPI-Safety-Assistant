@@ -1,9 +1,19 @@
+import os
 import time
 
 import ollama
 
 
-MODEL_NAME = "qwen2.5:7b"
+# ============================================================
+# MODEL CONFIGURATION
+# ============================================================
+
+# Use the MODEL_NAME environment variable when provided.
+# Otherwise, use qwen2.5:7b for local development.
+MODEL_NAME = os.getenv(
+    "MODEL_NAME",
+    "qwen2.5:7b"
+)
 
 
 def generate_answer(question, context, history=None):
