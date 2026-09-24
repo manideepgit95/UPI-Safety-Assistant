@@ -7,6 +7,10 @@ from rank_bm25 import BM25Okapi
 from sentence_transformers import SentenceTransformer
 
 
+# ============================================================
+# PATH CONFIGURATION
+# ============================================================
+
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 INDEX_FILE = BASE_DIR / "data" / "processed" / "faiss.index"
@@ -16,21 +20,38 @@ MODEL_NAME = "all-MiniLM-L6-v2"
 
 
 # ============================================================
-# LOAD EMBEDDING MODEL ONCE
+# LAZY MODEL LOADING
 # ============================================================
 
-print(f"\nLoading embedding model: {MODEL_NAME}")
+EMBEDDING_MODEL = None
 
-model_start = time.perf_counter()
 
-EMBEDDING_MODEL = SentenceTransformer(MODEL_NAME)
+def get_embedding_model():
+    """
+    Load the embedding model only when it is actually needed.
 
-model_load_time = time.perf_counter() - model_start
+    This prevents the model from consuming memory during
+    FastAPI startup.
+    """
 
-print(
-    f"Embedding model loaded in: "
-    f"{model_load_time:.2f} seconds"
-)
+    global EMBEDDING_MODEL
+
+    if EMBEDDING_MODEL is None:
+
+        print(f"\nLoading embedding model: {MODEL_NAME}")
+
+        model_start = time.perf_counter()
+
+        EMBEDDING_MODEL = SentenceTransformer(MODEL_NAME)
+
+        model_load_time = time.perf_counter() - model_start
+
+        print(
+            f"Embedding model loaded in: "
+            f"{model_load_time:.2f} seconds"
+        )
+
+    return EMBEDDING_MODEL
 
 
 # ============================================================
@@ -38,10 +59,12 @@ print(
 # ============================================================
 
 def load_knowledge_base():
+
     with KNOWLEDGE_BASE.open(
         "r",
         encoding="utf-8"
     ) as file:
+
         return json.load(file)
 
 
@@ -91,7 +114,7 @@ def semantic_search(
         results.append(
             {
                 "chunk": chunks[index_id],
-                "score": float(score),
+                "score": float(score)
             }
         )
 
@@ -111,9 +134,7 @@ def keyword_search(
 
     query_tokens = query.lower().split()
 
-    scores = bm25.get_scores(
-        query_tokens
-    )
+    scores = bm25.get_scores(query_tokens)
 
     top_indices = sorted(
         range(len(scores)),
@@ -128,7 +149,7 @@ def keyword_search(
         results.append(
             {
                 "chunk": chunks[index_id],
-                "score": float(scores[index_id]),
+                "score": float(scores[index_id])
             }
         )
 
@@ -144,17 +165,16 @@ def hybrid_search(
     top_k=5
 ):
 
-    # --------------------------------------------------------
-    # 1. Load knowledge base
-    # --------------------------------------------------------
-
     start_time = time.perf_counter()
+
+    # --------------------------------------------------------
+    # Load knowledge base
+    # --------------------------------------------------------
 
     chunks = load_knowledge_base()
 
     knowledge_base_time = (
-        time.perf_counter()
-        - start_time
+        time.perf_counter() - start_time
     )
 
     print(
@@ -164,7 +184,7 @@ def hybrid_search(
 
 
     # --------------------------------------------------------
-    # 2. Load FAISS index
+    # Load FAISS index
     # --------------------------------------------------------
 
     index_start = time.perf_counter()
@@ -174,8 +194,7 @@ def hybrid_search(
     )
 
     index_load_time = (
-        time.perf_counter()
-        - index_start
+        time.perf_counter() - index_start
     )
 
     print(
@@ -185,7 +204,7 @@ def hybrid_search(
 
 
     # --------------------------------------------------------
-    # 3. Build BM25
+    # Build BM25
     # --------------------------------------------------------
 
     bm25_start = time.perf_counter()
@@ -193,8 +212,7 @@ def hybrid_search(
     bm25 = build_bm25(chunks)
 
     bm25_build_time = (
-        time.perf_counter()
-        - bm25_start
+        time.perf_counter() - bm25_start
     )
 
     print(
@@ -204,7 +222,14 @@ def hybrid_search(
 
 
     # --------------------------------------------------------
-    # 4. Semantic search
+    # Get embedding model
+    # --------------------------------------------------------
+
+    embedding_model = get_embedding_model()
+
+
+    # --------------------------------------------------------
+    # Semantic search
     # --------------------------------------------------------
 
     semantic_start = time.perf_counter()
@@ -212,14 +237,13 @@ def hybrid_search(
     semantic_results = semantic_search(
         query,
         chunks,
-        EMBEDDING_MODEL,
+        embedding_model,
         index,
         top_k
     )
 
     semantic_time = (
-        time.perf_counter()
-        - semantic_start
+        time.perf_counter() - semantic_start
     )
 
     print(
@@ -229,7 +253,7 @@ def hybrid_search(
 
 
     # --------------------------------------------------------
-    # 5. Keyword search
+    # Keyword search
     # --------------------------------------------------------
 
     keyword_start = time.perf_counter()
@@ -242,8 +266,7 @@ def hybrid_search(
     )
 
     keyword_time = (
-        time.perf_counter()
-        - keyword_start
+        time.perf_counter() - keyword_start
     )
 
     print(
@@ -253,13 +276,10 @@ def hybrid_search(
 
 
     # --------------------------------------------------------
-    # 6. Combine semantic + keyword results
+    # Combine results
     # --------------------------------------------------------
 
     combined = {}
-
-
-    # Semantic results
 
     for result in semantic_results:
 
@@ -270,16 +290,14 @@ def hybrid_search(
             {
                 "chunk": result["chunk"],
                 "semantic_score": 0.0,
-                "keyword_score": 0.0,
+                "keyword_score": 0.0
             }
         )
 
-        combined[chunk_id][
-            "semantic_score"
-        ] = result["score"]
+        combined[chunk_id]["semantic_score"] = (
+            result["score"]
+        )
 
-
-    # Keyword results
 
     for result in keyword_results:
 
@@ -290,17 +308,17 @@ def hybrid_search(
             {
                 "chunk": result["chunk"],
                 "semantic_score": 0.0,
-                "keyword_score": 0.0,
+                "keyword_score": 0.0
             }
         )
 
-        combined[chunk_id][
-            "keyword_score"
-        ] = result["score"]
+        combined[chunk_id]["keyword_score"] = (
+            result["score"]
+        )
 
 
     # --------------------------------------------------------
-    # 7. Normalize scores
+    # Normalize scores
     # --------------------------------------------------------
 
     results = []
@@ -315,7 +333,6 @@ def hybrid_search(
         for item in combined.values()
     ]
 
-
     max_semantic = (
         max(semantic_scores)
         if semantic_scores
@@ -329,22 +346,11 @@ def hybrid_search(
     )
 
 
-    # --------------------------------------------------------
-    # 8. Calculate hybrid score
-    # --------------------------------------------------------
-
     for item in combined.values():
 
-        semantic_score = (
-            item["semantic_score"]
-        )
+        semantic_score = item["semantic_score"]
 
-        keyword_score = (
-            item["keyword_score"]
-        )
-
-
-        # Normalize semantic score
+        keyword_score = item["keyword_score"]
 
         normalized_semantic = (
             semantic_score / max_semantic
@@ -352,24 +358,17 @@ def hybrid_search(
             else 0.0
         )
 
-
-        # Normalize keyword score
-
         normalized_keyword = (
             keyword_score / max_keyword
             if max_keyword > 0
             else 0.0
         )
 
-
-        # 70% semantic
-        # 30% keyword
-
         hybrid_score = (
             0.7 * normalized_semantic
-            + 0.3 * normalized_keyword
+            +
+            0.3 * normalized_keyword
         )
-
 
         results.append(
             {
@@ -384,7 +383,7 @@ def hybrid_search(
 
 
     # --------------------------------------------------------
-    # 9. Remove duplicate chunks
+    # Remove duplicate chunks
     # --------------------------------------------------------
 
     unique_results = []
@@ -393,50 +392,37 @@ def hybrid_search(
 
     for result in results:
 
-        chunk_id = result[
-            "chunk"
-        ]["chunk_id"]
+        chunk_id = result["chunk"]["chunk_id"]
 
         if chunk_id not in seen_chunks:
 
-            seen_chunks.add(
-                chunk_id
-            )
+            seen_chunks.add(chunk_id)
 
-            unique_results.append(
-                result
-            )
+            unique_results.append(result)
 
 
     # --------------------------------------------------------
-    # 10. Sort by hybrid score
+    # Sort by hybrid score
     # --------------------------------------------------------
 
     unique_results.sort(
-        key=lambda item: item[
-            "hybrid_score"
-        ],
+        key=lambda item: item["hybrid_score"],
         reverse=True
     )
 
-
-    # --------------------------------------------------------
-    # 11. Return top results
-    # --------------------------------------------------------
 
     return unique_results[:top_k]
 
 
 # ============================================================
-# TESTING
+# STANDALONE TEST
 # ============================================================
 
 if __name__ == "__main__":
 
     query = input(
-        "\nEnter your UPI safety question: "
+        "\nEnter your search question: "
     ).strip()
-
 
     if not query:
 
@@ -444,80 +430,28 @@ if __name__ == "__main__":
             "Please enter a question."
         )
 
-
     else:
 
         results = hybrid_search(
-            query
+            query,
+            top_k=5
         )
-
 
         print(
-            "\nHybrid Search Results:"
+            "\nSearch Results:"
         )
 
+        print(
+            "=============================="
+        )
 
-        for rank, result in enumerate(
-            results,
-            start=1
-        ):
-
-            chunk = result[
-                "chunk"
-            ]
-
+        for result in results:
 
             print(
-                "\n--------------------------------"
-            )
-
-
-            print(
-                f"Rank: {rank}"
-            )
-
-
-            print(
-                f"Hybrid Score: "
+                f"\nScore: "
                 f"{result['hybrid_score']:.4f}"
             )
 
-
             print(
-                f"Semantic Score: "
-                f"{result['semantic_score']:.4f}"
-            )
-
-
-            print(
-                f"Keyword Score: "
-                f"{result['keyword_score']:.4f}"
-            )
-
-
-            print(
-                f"File: "
-                f"{chunk['file_name']}"
-            )
-
-
-            print(
-                f"Category: "
-                f"{chunk['category']}"
-            )
-
-
-            print(
-                f"Chunk ID: "
-                f"{chunk['chunk_id']}"
-            )
-
-
-            print(
-                "Content:"
-            )
-
-
-            print(
-                chunk["content"][:500]
+                result["chunk"]["content"]
             )
