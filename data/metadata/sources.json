@@ -1,0 +1,72 @@
+[
+  {
+    "source_id": "npci_upi",
+    "organization": "National Payments Corporation of India",
+    "title": "Unified Payments Interface (UPI)",
+    "source_type": "official_webpage",
+    "url": "https://www.npci.org.in/product/upi",
+    "topics": [
+      "UPI basics",
+      "UPI PIN",
+      "transaction safety"
+    ],
+    "trust_level": "official"
+  },
+  {
+    "source_id": "npci_fraud_awareness",
+    "organization": "National Payments Corporation of India",
+    "title": "Fraud Awareness",
+    "source_type": "official_webpage",
+    "url": "https://www.npci.org.in/fraud-awareness",
+    "topics": [
+      "QR code scams",
+      "fake cashback",
+      "unknown apps",
+      "online scams",
+      "social engineering"
+    ],
+    "trust_level": "official"
+  },
+  {
+    "source_id": "npci_bhim",
+    "organization": "National Payments Corporation of India",
+    "title": "BHIM",
+    "source_type": "official_webpage",
+    "url": "https://www.npci.org.in/product/bhim",
+    "topics": [
+      "UPI payments",
+      "collect requests",
+      "transaction safety"
+    ],
+    "trust_level": "official"
+  },
+  {
+    "source_id": "rbi_digital_safety",
+    "organization": "Reserve Bank of India",
+    "title": "Digital Payment Safety",
+    "source_type": "official_document",
+    "url": "https://systemhealth.rbi.org.in/cms.rbi.org.in/cms/assets/Documents/BEAWARE07032022.pdf",
+    "topics": [
+      "digital payment safety",
+      "PIN safety",
+      "OTP safety",
+      "suspicious links",
+      "fraud prevention"
+    ],
+    "trust_level": "official"
+  },
+  {
+    "source_id": "cybercrime_portal",
+    "organization": "Government of India",
+    "title": "National Cyber Crime Reporting Portal",
+    "source_type": "official_webpage",
+    "url": "https://www.cybercrime.gov.in/",
+    "topics": [
+      "cyber crime reporting",
+      "financial fraud",
+      "fraud reporting",
+      "1930 helpline"
+    ],
+    "trust_level": "official"
+  }
+]
