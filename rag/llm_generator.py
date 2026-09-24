@@ -1,18 +1,46 @@
 import os
 import time
 
-import ollama
+from huggingface_hub import InferenceClient
 
 
 # ============================================================
 # MODEL CONFIGURATION
 # ============================================================
 
-# Use the MODEL_NAME environment variable when provided.
-# Otherwise, use qwen2.5:7b for local development.
+# Hugging Face model used for cloud inference.
 MODEL_NAME = os.getenv(
-    "MODEL_NAME",
-    "qwen2.5:7b"
+    "HF_MODEL",
+    "Qwen/Qwen3-8B"
+)
+
+# Hugging Face inference provider.
+PROVIDER = os.getenv(
+    "HF_PROVIDER",
+    "nscale"
+)
+
+# Hugging Face API token.
+HF_TOKEN = os.getenv("HF_TOKEN")
+
+
+# ============================================================
+# VALIDATE CONFIGURATION
+# ============================================================
+
+if not HF_TOKEN:
+    raise RuntimeError(
+        "HF_TOKEN environment variable is not set."
+    )
+
+
+# ============================================================
+# HUGGING FACE CLIENT
+# ============================================================
+
+client = InferenceClient(
+    provider=PROVIDER,
+    api_key=HF_TOKEN
 )
 
 
@@ -43,8 +71,6 @@ def generate_answer(question, context, history=None):
     # LIMIT TRUSTED CONTEXT
     # ========================================================
 
-    # Keep the context focused so the LLM does not receive
-    # unnecessarily large amounts of text.
     MAX_CONTEXT_CHARS = 7000
 
     if len(context) > MAX_CONTEXT_CHARS:
@@ -63,6 +89,8 @@ provided below.
 
 Rules:
 - Use only facts explicitly supported by the trusted knowledge.
+- Every factual statement in the answer must be directly supported by the trusted knowledge.
+- Do not add general advice, recommendations, verification steps, or contact instructions unless they are explicitly stated in the trusted knowledge.
 - Use previous conversation only to understand follow-up questions.
 - Do not use previous conversation as factual evidence.
 - Do not add outside knowledge or unsupported advice.
@@ -106,8 +134,6 @@ ANSWER:
 
     prompt_characters = len(prompt)
 
-    # Rough character-based estimate.
-    # This is only for monitoring, not an exact tokenizer count.
     estimated_tokens = prompt_characters // 4
 
     print(
@@ -123,14 +149,15 @@ ANSWER:
 
     start_time = time.perf_counter()
 
-    response = ollama.chat(
+    response = client.chat.completions.create(
         model=MODEL_NAME,
         messages=[
             {
                 "role": "user",
                 "content": prompt
             }
-        ]
+        ],
+        max_tokens=500
     )
 
     generation_time = time.perf_counter() - start_time
@@ -145,7 +172,14 @@ ANSWER:
     # RETURN ANSWER
     # ========================================================
 
-    return response["message"]["content"].strip()
+    answer = response.choices[0].message.content
+
+    if not answer:
+        raise RuntimeError(
+            "The hosted model returned an empty answer."
+        )
+
+    return answer.strip()
 
 
 # ============================================================

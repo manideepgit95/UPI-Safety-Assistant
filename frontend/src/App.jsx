@@ -12,6 +12,10 @@ function App() {
   const [scenarioResult, setScenarioResult] = useState(null);
   const [scenarioLoading, setScenarioLoading] = useState(false);
 
+  // ============================================================
+  // CHAT ASSISTANT
+  // ============================================================
+
   const askAssistant = async () => {
     const trimmedQuestion = question.trim();
 
@@ -24,36 +28,50 @@ function App() {
       content: trimmedQuestion,
     };
 
-    setMessages((previous) => [...previous, userMessage]);
+    // Save the current conversation before adding the new user message.
+    const conversationHistory = messages.map((message) => ({
+      role: message.role,
+      content: message.content,
+    }));
+
+    setMessages((previous) => [
+      ...previous,
+      userMessage,
+    ]);
+
     setQuestion("");
     setLoading(true);
 
     try {
       const response = await fetch(`${API_URL}/chat`, {
-  method: "POST",
-  headers: {
-    "Content-Type": "application/json",
-  },
-  body: JSON.stringify({
-    question: trimmedQuestion,
-    history: messages.map((message) => ({
-      role: message.role,
-      content: message.content,
-    })),
-  }),
-});
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          question: trimmedQuestion,
+          history: conversationHistory,
+        }),
+      });
 
       if (!response.ok) {
-        throw new Error("Unable to connect to the assistant.");
+        throw new Error(
+          `Chat request failed with status ${response.status}`
+        );
       }
 
       const data = await response.json();
 
       const assistantMessage = {
         role: "assistant",
-        content: data.answer,
-        sources: data.sources || [],
+        content:
+          data.answer ||
+          "I could not generate an answer.",
+        sources: Array.isArray(data.sources)
+          ? data.sources
+          : [],
         safety: data.safety || null,
+        error: false,
       };
 
       setMessages((previous) => [
@@ -61,6 +79,8 @@ function App() {
         assistantMessage,
       ]);
     } catch (error) {
+      console.error("Chat error:", error);
+
       setMessages((previous) => [
         ...previous,
         {
@@ -76,6 +96,10 @@ function App() {
       setLoading(false);
     }
   };
+
+  // ============================================================
+  // SCAM SCENARIO ANALYZER
+  // ============================================================
 
   const analyzeScenario = async () => {
     const trimmedScenario = scenario.trim();
@@ -102,13 +126,26 @@ function App() {
       );
 
       if (!response.ok) {
-        throw new Error("Unable to analyze the scenario.");
+        throw new Error(
+          `Scenario request failed with status ${response.status}`
+        );
       }
 
       const data = await response.json();
 
-      setScenarioResult(data.analysis);
+      setScenarioResult(
+        data.analysis || {
+          level: "error",
+          label: "Analysis Unavailable",
+          icon: "⚠️",
+          indicators: [
+            "The scenario analyzer did not return a valid analysis.",
+          ],
+        }
+      );
     } catch (error) {
+      console.error("Scenario analysis error:", error);
+
       setScenarioResult({
         level: "error",
         label: "Analysis Unavailable",
@@ -122,12 +159,23 @@ function App() {
     }
   };
 
+  // ============================================================
+  // KEYBOARD HANDLER
+  // ============================================================
+
   const handleKeyDown = (event) => {
-    if (event.key === "Enter" && !event.shiftKey) {
+    if (
+      event.key === "Enter" &&
+      !event.shiftKey
+    ) {
       event.preventDefault();
       askAssistant();
     }
   };
+
+  // ============================================================
+  // SUGGESTED QUESTIONS
+  // ============================================================
 
   const suggestedQuestions = [
     "Should I enter my UPI PIN to receive money?",
@@ -135,33 +183,65 @@ function App() {
     "What should I do if I sent money to a scammer?",
   ];
 
+  // ============================================================
+  // UI
+  // ============================================================
+
   return (
     <div className="app">
+
+      {/* BACKGROUND EFFECTS */}
       <div className="background-glow glow-one"></div>
       <div className="background-glow glow-two"></div>
 
+      {/* ======================================================
+          HEADER
+      ====================================================== */}
+
       <header className="header">
+
         <div className="brand">
-          <div className="brand-icon">🛡️</div>
+
+          <div className="brand-icon">
+            🛡️
+          </div>
 
           <div>
-            <h1>UPI Safety Assistant</h1>
-            <p>AI-powered digital payment safety</p>
+            <h1>
+              UPI Safety Assistant
+            </h1>
+
+            <p>
+              AI-powered digital payment safety
+            </p>
           </div>
+
         </div>
 
         <div className="status">
           <span className="status-dot"></span>
           Trusted AI
         </div>
+
       </header>
+
+      {/* ======================================================
+          MAIN
+      ====================================================== */}
 
       <main className="main">
 
-        {/* WELCOME SCREEN */}
+        {/* ====================================================
+            WELCOME SCREEN
+        ==================================================== */}
+
         {messages.length === 0 ? (
+
           <section className="welcome">
-            <div className="hero-icon">🛡️</div>
+
+            <div className="hero-icon">
+              🛡️
+            </div>
 
             <div className="badge">
               <span>✦</span>
@@ -170,136 +250,215 @@ function App() {
 
             <h2>
               Stay safe with
-              <span> smarter UPI guidance.</span>
+              <span>
+                {" "}
+                smarter UPI guidance.
+              </span>
             </h2>
 
             <p className="hero-text">
-              Ask questions about UPI payments, suspicious QR codes,
-              payment requests, scams, and digital payment safety.
+              Ask questions about UPI payments,
+              suspicious QR codes, payment requests,
+              scams, and digital payment safety.
             </p>
 
             <div className="suggestions">
-              {suggestedQuestions.map((item) => (
-                <button
-                  key={item}
-                  className="suggestion-card"
-                  onClick={() => setQuestion(item)}
-                >
-                  <span className="suggestion-icon">→</span>
-                  <span>{item}</span>
-                </button>
-              ))}
+
+              {suggestedQuestions.map(
+                (item) => (
+                  <button
+                    key={item}
+                    type="button"
+                    className="suggestion-card"
+                    onClick={() =>
+                      setQuestion(item)
+                    }
+                  >
+                    <span className="suggestion-icon">
+                      →
+                    </span>
+
+                    <span>
+                      {item}
+                    </span>
+                  </button>
+                )
+              )}
+
             </div>
+
           </section>
+
         ) : (
 
-          /* CHAT AREA */
+          /* ==================================================
+             CHAT AREA
+          ================================================== */
+
           <section className="chat-area">
 
-            {messages.map((message, index) => (
-              <div
-                key={index}
-                className={`message-row ${message.role}`}
-              >
-                <div className="message-avatar">
-                  {message.role === "user" ? "👤" : "🛡️"}
-                </div>
+            {messages.map(
+              (message, index) => (
 
-                <div className="message-content">
+                <div
+                  key={`${message.role}-${index}`}
+                  className={`message-row ${message.role}`}
+                >
 
-                  <div className="message-label">
+                  {/* MESSAGE AVATAR */}
+
+                  <div className="message-avatar">
                     {message.role === "user"
-                      ? "You"
-                      : "UPI Safety Assistant"}
+                      ? "👤"
+                      : "🛡️"}
                   </div>
 
-                  {/* SAFETY LEVEL */}
-                  {message.safety && (
-                    <div
-                      className={`safety-badge ${message.safety.level}`}
-                    >
-                      <span>{message.safety.icon}</span>
-                      <span>{message.safety.label}</span>
+                  <div className="message-content">
+
+                    {/* MESSAGE LABEL */}
+
+                    <div className="message-label">
+
+                      {message.role === "user"
+                        ? "You"
+                        : "UPI Safety Assistant"}
+
                     </div>
-                  )}
 
-                  {/* ANSWER */}
-                  <div
-                    className={`message-bubble ${
-                      message.error ? "error-message" : ""
-                    }`}
-                  >
-                    {message.content}
-                  </div>
+                    {/* =================================================
+                        SAFETY LEVEL
+                    ================================================= */}
 
-                  {/* TRUSTED SOURCES */}
-                  {message.sources &&
-                    message.sources.length > 0 && (
-                      <div className="sources">
+                    {message.safety && (
+                      <div
+                        className={`safety-badge ${message.safety.level}`}
+                      >
 
-                        <div className="sources-title">
-                          📚 Trusted Sources
-                        </div>
+                        <span>
+                          {message.safety.icon}
+                        </span>
 
-                        <div className="source-list">
-
-                          {message.sources.map(
-                            (source, sourceIndex) => (
-                              <div
-                                className="source-card"
-                                key={`${source.chunk_id}-${sourceIndex}`}
-                              >
-
-                                <div className="source-number">
-                                  {sourceIndex + 1}
-                                </div>
-
-                                <div className="source-details">
-
-                                  <div className="source-organization">
-                                    🏛️ {source.organization}
-                                  </div>
-
-                                  <strong className="source-title">
-                                    {source.title}
-                                  </strong>
-
-                                  <div className="source-meta">
-
-                                    <span className="source-trust">
-                                      ✓ {source.trust_level}
-                                    </span>
-
-                                    {source.url && (
-                                      <a
-                                        href={source.url}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="source-link"
-                                      >
-                                        View official source ↗
-                                      </a>
-                                    )}
-
-                                  </div>
-
-                                </div>
-
-                              </div>
-                            )
-                          )}
-
-                        </div>
+                        <span>
+                          {message.safety.label}
+                        </span>
 
                       </div>
                     )}
 
-                </div>
-              </div>
-            ))}
+                    {/* =================================================
+                        ANSWER
+                    ================================================= */}
 
-            {/* LOADING INDICATOR */}
+                    <div
+                      className={`message-bubble ${
+                        message.error
+                          ? "error-message"
+                          : ""
+                      }`}
+                    >
+                      {message.content}
+                    </div>
+
+                    {/* =================================================
+                        TRUSTED SOURCES
+                    ================================================= */}
+
+                    {message.sources &&
+                      message.sources.length > 0 && (
+
+                        <div className="sources">
+
+                          <div className="sources-title">
+                            📚 Trusted Sources
+                          </div>
+
+                          <div className="source-list">
+
+                            {message.sources.map(
+                              (
+                                source,
+                                sourceIndex
+                              ) => (
+
+                                <div
+                                  className="source-card"
+                                  key={
+                                    source.chunk_id ||
+                                    `${source.source_id}-${sourceIndex}`
+                                  }
+                                >
+
+                                  <div className="source-number">
+                                    {sourceIndex + 1}
+                                  </div>
+
+                                  <div className="source-details">
+
+                                    {/* ORGANIZATION */}
+
+                                    <div className="source-organization">
+                                      🏛️{" "}
+                                      {source.organization ||
+                                        "Official Source"}
+                                    </div>
+
+                                    {/* TITLE */}
+
+                                    <strong className="source-title">
+                                      {source.title ||
+                                        source.file_name ||
+                                        "Trusted Source"}
+                                    </strong>
+
+                                    {/* SOURCE META */}
+
+                                    <div className="source-meta">
+
+                                      <span className="source-trust">
+                                        ✓{" "}
+                                        {source.trust_level ||
+                                          "official"}
+                                      </span>
+
+                                      {source.url && (
+                                        <a
+                                          href={source.url}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="source-link"
+                                        >
+                                          View official source ↗
+                                        </a>
+                                      )}
+
+                                    </div>
+
+                                  </div>
+
+                                </div>
+
+                              )
+                            )}
+
+                          </div>
+
+                        </div>
+
+                      )}
+
+                  </div>
+
+                </div>
+
+              )
+            )}
+
+            {/* ==================================================
+                LOADING INDICATOR
+            ================================================== */}
+
             {loading && (
+
               <div className="message-row assistant">
 
                 <div className="message-avatar">
@@ -327,12 +486,17 @@ function App() {
                 </div>
 
               </div>
+
             )}
 
           </section>
+
         )}
 
-        {/* SCAM SCENARIO ANALYZER */}
+        {/* ======================================================
+            SCAM SCENARIO ANALYZER
+        ====================================================== */}
+
         <section className="scenario-section">
 
           <div className="scenario-header">
@@ -342,12 +506,16 @@ function App() {
             </div>
 
             <div>
-              <h3>Scam Scenario Analyzer</h3>
+
+              <h3>
+                Scam Scenario Analyzer
+              </h3>
 
               <p>
-                Describe a suspicious UPI situation and check
-                for common warning signs.
+                Describe a suspicious UPI situation
+                and check for common warning signs.
               </p>
+
             </div>
 
           </div>
@@ -365,10 +533,12 @@ function App() {
             />
 
             <button
+              type="button"
               className="scenario-button"
               onClick={analyzeScenario}
               disabled={
-                !scenario.trim() || scenarioLoading
+                !scenario.trim() ||
+                scenarioLoading
               }
             >
               {scenarioLoading
@@ -378,13 +548,18 @@ function App() {
 
           </div>
 
-          {/* SCENARIO RESULT */}
+          {/* ==================================================
+              SCENARIO RESULT
+          ================================================== */}
+
           {scenarioResult && (
+
             <div className="scenario-result">
 
               <div
                 className={`scenario-result-badge ${scenarioResult.level}`}
               >
+
                 <span>
                   {scenarioResult.icon}
                 </span>
@@ -392,10 +567,12 @@ function App() {
                 <span>
                   {scenarioResult.label}
                 </span>
+
               </div>
 
               {scenarioResult.indicators &&
                 scenarioResult.indicators.length > 0 && (
+
                   <div className="scenario-indicators">
 
                     <div className="scenario-result-title">
@@ -404,28 +581,39 @@ function App() {
 
                     {scenarioResult.indicators.map(
                       (indicator, index) => (
+
                         <div
                           className="indicator-item"
                           key={index}
                         >
-                          <span>•</span>
+
+                          <span>
+                            •
+                          </span>
 
                           <span>
                             {indicator}
                           </span>
+
                         </div>
+
                       )
                     )}
 
                   </div>
+
                 )}
 
             </div>
+
           )}
 
         </section>
 
-        {/* MESSAGE COMPOSER */}
+        {/* ======================================================
+            MESSAGE COMPOSER
+        ====================================================== */}
+
         <section className="composer">
 
           <div className="input-wrapper">
@@ -442,10 +630,12 @@ function App() {
             />
 
             <button
+              type="button"
               className="send-button"
               onClick={askAssistant}
               disabled={
-                !question.trim() || loading
+                !question.trim() ||
+                loading
               }
               aria-label="Send question"
             >
@@ -469,6 +659,10 @@ function App() {
         </section>
 
       </main>
+
+      {/* ======================================================
+          FOOTER
+      ====================================================== */}
 
       <footer className="footer">
 
